@@ -54,49 +54,88 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Audio autoplay handling - plays once on page load/refresh
+// Audio autoplay handling - works on both desktop and mobile
 const audio = document.getElementById('background-audio');
+let audioStarted = false;
 
-// Function to play audio once
-function playAudioOnce() {
-    if (audio) {
-        // Check if audio has already been played in this session
-        const hasPlayed = sessionStorage.getItem('audioPlayed');
-        
-        if (!hasPlayed) {
-            audio.play().then(() => {
-                console.log('Audio playing');
-                // Mark as played for this session
-                sessionStorage.setItem('audioPlayed', 'true');
-            }).catch((error) => {
-                console.log('Autoplay blocked by browser, waiting for user interaction');
-                // If autoplay is blocked, play on first user interaction
-                const playOnInteraction = () => {
-                    audio.play().then(() => {
-                        sessionStorage.setItem('audioPlayed', 'true');
-                        console.log('Audio playing after user interaction');
-                    }).catch(err => console.log('Audio play failed:', err));
-                    
-                    // Remove listeners after playing
-                    document.body.removeEventListener('click', playOnInteraction);
-                    document.body.removeEventListener('touchstart', playOnInteraction);
-                };
-                
-                document.body.addEventListener('click', playOnInteraction, { once: true });
-                document.body.addEventListener('touchstart', playOnInteraction, { once: true });
-            });
-        }
+// Function to start audio playback
+function startAudio() {
+    if (audio && !audioStarted) {
+        audio.play().then(() => {
+            audioStarted = true;
+            console.log('Audio playing');
+            // Remove the play indicator if it exists
+            const playIndicator = document.getElementById('audio-play-indicator');
+            if (playIndicator) {
+                playIndicator.style.opacity = '0';
+                setTimeout(() => playIndicator.remove(), 300);
+            }
+        }).catch((error) => {
+            console.log('Audio play failed:', error);
+        });
     }
 }
 
-// Clear the session storage flag when page is refreshed/reloaded
-window.addEventListener('beforeunload', () => {
-    sessionStorage.removeItem('audioPlayed');
+// Try to autoplay on page load (works on desktop)
+window.addEventListener('load', () => {
+    audio.play().then(() => {
+        audioStarted = true;
+        console.log('Audio autoplaying');
+    }).catch((error) => {
+        console.log('Autoplay blocked, waiting for user interaction');
+        
+        // Create a subtle play indicator for mobile users
+        const playIndicator = document.createElement('div');
+        playIndicator.id = 'audio-play-indicator';
+        playIndicator.innerHTML = '<i class="fas fa-volume-up"></i> Tap to play audio';
+        playIndicator.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulse-indicator 2s infinite;
+        `;
+        document.body.appendChild(playIndicator);
+        
+        // Add pulse animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse-indicator {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Play on indicator click
+        playIndicator.addEventListener('click', startAudio);
+    });
 });
 
-// Try to play audio on page load
-window.addEventListener('load', () => {
-    playAudioOnce();
+// Play audio on any user interaction (for mobile)
+const playOnInteraction = () => {
+    if (!audioStarted) {
+        startAudio();
+    }
+};
+
+// Listen for various user interactions
+document.addEventListener('click', playOnInteraction, { once: true });
+document.addEventListener('touchstart', playOnInteraction, { once: true });
+document.addEventListener('touchend', playOnInteraction, { once: true });
+document.addEventListener('scroll', playOnInteraction, { once: true });
+
+// Also try when navigation links are clicked
+document.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', playOnInteraction, { once: true });
 });
 
 // Image hover effect (desktop only)
